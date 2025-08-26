@@ -55,7 +55,7 @@ Ensure you have **Node.js v18+** installed.
 2. **Run the agent**
 
    ```bash
-   node index.js
+   npm start
    ```
 
 3. **Screenshots**
@@ -125,10 +125,3 @@ Browser closed
 This project is licensed under the **MIT License**. Feel free to modify and use for your own automation tasks!
 
 ---
-
-## Next Steps / Ideas
-
-* Add **dynamic form detection** using labels or placeholders.
-* Integrate **CAPTCHA solving** if required.
-* Export logs as a JSON report.
-* Add **headless mode toggle** via `.env`.

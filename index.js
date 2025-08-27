@@ -30,91 +30,136 @@ const openBrowser = tool({
     url: z.string(),
   }),
   async execute({ url }) {
-    await page.goto(url);
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+    return `Opened ${url}`;
+  },
+});
+
+// Take a partial screenshot in base64 (top of the page)
+const takePartialScreenshot = tool({
+  name: "take_partial_screenshot",
+  description:
+    "Take a cropped screenshot in base64. If selector is provided, screenshot only that element; otherwise screenshot top part of page.",
+  parameters: z.object({
+    height: z.number(),
+    selector: z.string().nullable(),
+  }),
+  async execute({ height, selector }) {
+    let clipArea;
+
+    if (selector != "") {
+      const element = await page.$(selector);
+      if (!element) {
+        return `Could not find element: ${selector}`;
+      }
+      const parent = await element.evaluateHandle((el) => el.parentElement);
+
+      const box = await parent.boundingBox();
+      if (!box) {
+        return `Could not determine bounding box for: ${selector}`;
+      }
+      clipArea = {
+        x: box.x,
+        y: box.y,
+        width: box.width,
+        height: box.height,
+      };
+    } else {
+
+      clipArea = {
+        x: 0,
+        y: 0,
+        width: 200,
+        height: height || 400,
+      };
+    }
+
+    const screenshot = await page.screenshot({
+      encoding: "base64",
+      clip: clipArea,
+      quality: 30,
+      type: "webp",
+    });
+    return screenshot;
   },
 });
 
 const openURL = tool({
   name: "open_url",
-  description: "finds Sign Up link and Click it",
+  description:
+    "finds Sign Up link with lable from the base64 screenshot.",
   parameters: z.object({
-    linkText: z.string(),
+    lable: z.string(),
   }),
-  async execute({ linkText }) {
+  async execute({ lable }) {
     await page.waitForSelector("a");
     const links = await page.$$("a");
     for (const link of links) {
       const text = await page.evaluate((el) => el.innerText.trim(), link);
-      if (text.includes(linkText)) {
+      if (text.includes(lable)) {
         await highlightElement(link);
         await link.click();
-        return `Clicked link with text: ${linkText}`;
+
+        return `Clicked link with text: ${lable}`;
       }
     }
-    return `Could not find link with text: ${linkText}`;
-  },
-});
-
-const takeScreenShot = tool({
-  name: "take_screenshot",
-  description:
-    "Takes a screenshot of the current page add saved it to a file named like step1.png, step2.png etc",
-  parameters: z.object({ filename: z.string() }),
-  async execute({ filename }) {
-    await page.screenshot({ path: "screenshots/" + filename });
-    return `Screenshot saved as ${filename}`;
+    return `Could not find link with text: ${lable}`;
   },
 });
 
 const fillForm = tool({
   name: "fill_form",
-  description:
-    "find First Name, Last Name, Email, Password and Confirm Password and fill them",
+  description: "get Main button: lable from the base64 screenshot.",
   parameters: z.object({
-    firstName: z.string(),
-    lastName: z.string(),
-    email: z.string(),
-    password: z.string(),
-    confirmPassword: z.string(),
+    fields: z.object({
+      firstName: z.string(),
+      lastName: z.string(),
+      email: z.string(),
+      password: z.string(),
+      confirmPassword: z.string(),
+    }),
+    btnLabel: z.string().nullable(),
   }),
-  async execute({ firstName, lastName, email, password, confirmPassword }) {
-    const fields = [
-      { id: "firstName", value: firstName },
-      { id: "lastName", value: lastName },
-      { id: "email", value: email },
-      { id: "password", value: password },
-      { id: "confirmPassword", value: confirmPassword },
-    ];
-    for (const field of fields) {
-      const element = await page.$(`#${field.id}`);
-      if (element) {
-        console.log(`Found element with id: ${field.id}`);
-        await highlightElement(element);
-        await element.type(field.value, { delay: 150 });
-      } else {
-        console.log(`Could not find element with id: ${field.id}`);
+
+  async execute({ fields, btnLabel }) {
+    for (const [field, value] of Object.entries(fields)) {
+      const selectors = [
+        `input[name="${field}"]`,
+        `input[id="${field}"]`,
+        `input[placeholder*="${field}"]`,
+        `input[aria-label*="${field}"]`,
+        `input[title*="${field}"]`,
+        `input[type="${
+          field.toLowerCase().includes("password") ? "password" : "text"
+        }"]`,
+      ];
+
+      for (const selector of selectors) {
+        const element = await page.$(selector);
+        if (element) {
+          await highlightElement(element);
+          await element.type(value, { delay: 150 });
+          break;
+        }
       }
     }
-    return `Filled form with data: ${firstName}, ${lastName}, ${email}, ${password}, ${confirmPassword}`;
+
+    const buttons = await page.$$("button");
+    for (const button of buttons) {
+      const text = await page.evaluate((el) => {
+        return el.innerText.trim();
+      }, button);
+      if (text.includes(btnLabel)) {
+        await highlightElement(button);
+        await button.click();
+        return `Filled form and clicked button "${btnLabel}"`;
+      }
+    }
+
+    return `Filled form with data`;
   },
 });
 
-const submitForm = tool({
-  name: "submit_form",
-  description: "find the submit button and click it",
-  parameters: z.object({}),
-  async execute() {
-    const submitBtn = await page.$("button[type='submit']");
-    if (submitBtn) {
-      await highlightElement(submitBtn);
-      await submitBtn.click();
-      console.log("Clicked submit button");
-    } else {
-      console.log("Could not find submit button");
-    }
-    return "Form submitted";
-  },
-});
 
 const closeBrowser = tool({
   name: "close_browser",
@@ -129,31 +174,23 @@ const closeBrowser = tool({
 
 const websiteAutomationAgent = new Agent({
   name: "WebSite Automation Agent",
-  instructions: `You are a web automation agent. Use tools to open pages and click links.
-  
-  Rules:
-    After every tool calling take a screenshot.
-    Find the Create Account form and fill it with the given data.
-    First Name: Bera
-    Last Name: Dhaval
-    Email: test@gmail.com 
-    Password: 123456789
-    Confirm Password: 123456789
+  instructions: `
+You are a web automation agent. Use the tools strictly in this sequence:
 
-    After filling the form, click the submit button and then close the browser.
-  `,
-  tools: [
-    openBrowser,
-    openURL,
-    takeScreenShot,
-    fillForm,
-    submitForm,
-    closeBrowser,
-  ],
+1. Open the website.
+2. Take a screenshot of the top of the page around 400px.
+3. Use open_url to click the Sign Up link.
+4. Take a screenshot of the signup form using selector "form".
+5. Use fill_form to fill the form and and LOOK at it and find input field lables from the screenshot, get button lable from base64 screenshot not guess it and it's not sign up.
+6. Fill the form with dummy data
+7. Close the browser.`,
+  tools: [openBrowser, takePartialScreenshot, openURL, fillForm, closeBrowser],
 });
 
 const result = await run(
   websiteAutomationAgent,
-  `Open https://ui.chaicode.com/, then click the "Sign Up" link.`
+  `Open https://ui.chaicode.com/, click "Sign Up", inspect the signup form screenshot, determine the submit button label, fill dummy data, submit, and close the browser.`
+  // `Open https://ui.chaicode.com/, find the Sign Up text, then fill the form with dummy data, find a form submit button lable, and close browser.`
+  // `Open https://ui.chaicode.com/, find the Sign Up text, and take a screenshot of the Sign Up link section, then take screenshot of the signup form using selector "form". Fill the form with dummy data. Submit the form. Close the browser.`,
 );
 console.log(result.finalOutput);

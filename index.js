@@ -122,6 +122,8 @@ const fillForm = tool({
   }),
 
   async execute({ fields, btnLabel }) {
+    console.log('btnLabel', btnLabel);
+    
     for (const [field, value] of Object.entries(fields)) {
       const selectors = [
         `input[name="${field}"]`,
@@ -151,6 +153,7 @@ const fillForm = tool({
       }, button);
       if (text.includes(btnLabel)) {
         await highlightElement(button);
+        await new Promise(resolve => setTimeout(resolve, 2000));
         await button.click();
         return `Filled form and clicked button "${btnLabel}"`;
       }

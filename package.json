@@ -14,7 +14,9 @@
     "@types/node": "^24.3.0"
   },
   "dependencies": {
+    "@ai-sdk/google": "^2.0.11",
     "@openai/agents": "^0.0.17",
+    "@openai/agents-extensions": "^0.0.17",
     "dotenv": "^17.2.1",
     "puppeteer": "^24.17.0",
     "zod": "^3.25.76"

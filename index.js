@@ -65,11 +65,12 @@ const takePartialScreenshot = tool({
         height: box.height,
       };
     } else {
+      console.log(height);
 
       clipArea = {
         x: 0,
         y: 0,
-        width: 200,
+        width: 1000,
         height: height || 400,
       };
     }
@@ -77,7 +78,7 @@ const takePartialScreenshot = tool({
     const screenshot = await page.screenshot({
       encoding: "base64",
       clip: clipArea,
-      quality: 30,
+      quality: 10,
       type: "webp",
     });
     return screenshot;
@@ -86,8 +87,7 @@ const takePartialScreenshot = tool({
 
 const openURL = tool({
   name: "open_url",
-  description:
-    "finds Sign Up link with lable from the base64 screenshot.",
+  description: "finds Sign Up  link with lable from the base64 screenshot.",
   parameters: z.object({
     lable: z.string(),
   }),
@@ -122,8 +122,8 @@ const fillForm = tool({
   }),
 
   async execute({ fields, btnLabel }) {
-    console.log('btnLabel', btnLabel);
-    
+    console.log("btnLabel", btnLabel);
+
     for (const [field, value] of Object.entries(fields)) {
       const selectors = [
         `input[name="${field}"]`,
@@ -153,7 +153,7 @@ const fillForm = tool({
       }, button);
       if (text.includes(btnLabel)) {
         await highlightElement(button);
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
         await button.click();
         return `Filled form and clicked button "${btnLabel}"`;
       }
@@ -162,7 +162,6 @@ const fillForm = tool({
     return `Filled form with data`;
   },
 });
-
 
 const closeBrowser = tool({
   name: "close_browser",
@@ -184,16 +183,19 @@ You are a web automation agent. Use the tools strictly in this sequence:
 2. Take a screenshot of the top of the page around 400px.
 3. Use open_url to click the Sign Up link.
 4. Take a screenshot of the signup form using selector "form".
-5. Use fill_form to fill the form and and LOOK at it and find input field lables from the screenshot, get button lable from base64 screenshot not guess it and it's not sign up.
+5. Use fill_form to fill the form and and LOOK at it and find input field lables from the screenshot, get button lable like create account, sign up, register from base64 screenshot not guess it.
 6. Fill the form with dummy data
 7. Close the browser.`,
   tools: [openBrowser, takePartialScreenshot, openURL, fillForm, closeBrowser],
+  model: "gpt-4o-mini",
 });
 
-const result = await run(
-  websiteAutomationAgent,
-  `Open https://ui.chaicode.com/, click "Sign Up", inspect the signup form screenshot, determine the submit button label, fill dummy data, submit, and close the browser.`
-  // `Open https://ui.chaicode.com/, find the Sign Up text, then fill the form with dummy data, find a form submit button lable, and close browser.`
-  // `Open https://ui.chaicode.com/, find the Sign Up text, and take a screenshot of the Sign Up link section, then take screenshot of the signup form using selector "form". Fill the form with dummy data. Submit the form. Close the browser.`,
-);
-console.log(result.finalOutput);
+async function runAutomation(siteUrl = "") {
+  const result = await run(
+    websiteAutomationAgent,
+    `Open ${siteUrl}, click signup or register link, inspect the signup form screenshot, determine the submit button label, fill dummy data, submit, and close the browser.`
+  );
+  console.log(result.finalOutput);
+}
+
+runAutomation('https://ui.chaicode.com/')

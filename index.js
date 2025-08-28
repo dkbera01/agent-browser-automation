@@ -2,6 +2,7 @@ import "dotenv/config";
 import { Agent, run, tool } from "@openai/agents";
 import { z } from "zod";
 import puppeteer from "puppeteer";
+import Tesseract from "tesseract.js";
 
 const browser = await puppeteer.launch({
   headless: false,
@@ -71,27 +72,34 @@ const takePartialScreenshot = tool({
         x: 0,
         y: 0,
         width: 1000,
-        height: height || 400,
+        height: height || 600,
       };
     }
 
     const screenshot = await page.screenshot({
       encoding: "base64",
       clip: clipArea,
-      quality: 10,
-      type: "webp",
+      // quality: 80,
+      // type: "webp",
     });
-    return screenshot;
+
+    const buffer = Buffer.from(screenshot, "base64");
+    const { data } = await Tesseract.recognize(buffer, "eng");
+    // console.log(data.text);
+    // console.log(screenshot);
+    return data.text;
   },
 });
 
 const openURL = tool({
   name: "open_url",
-  description: "finds Sign Up  link with lable from the base64 screenshot.",
+  description: "finds authentication link with lable.",
   parameters: z.object({
     lable: z.string(),
   }),
   async execute({ lable }) {
+    console.log('lable', lable);
+    
     await page.waitForSelector("a");
     const links = await page.$$("a");
     for (const link of links) {
@@ -109,7 +117,8 @@ const openURL = tool({
 
 const fillForm = tool({
   name: "fill_form",
-  description: "get Main button: lable from the base64 screenshot.",
+  description:
+    "get button lable like create account, sign up, register, and fill the form with dummy data",
   parameters: z.object({
     fields: z.object({
       firstName: z.string(),
@@ -183,8 +192,8 @@ You are a web automation agent. Use the tools strictly in this sequence:
 2. Take a screenshot of the top of the page around 400px.
 3. Use open_url to click the Sign Up link.
 4. Take a screenshot of the signup form using selector "form".
-5. Use fill_form to fill the form and and LOOK at it and find input field lables from the screenshot, get button lable like create account, sign up, register from base64 screenshot not guess it.
-6. Fill the form with dummy data
+5. Use fill_form to fill the form and and LOOK at it and find input field lables, get button lable like create account, sign up, register.
+6. Fill the form with dummy data with real like name, email, password, confirm password.
 7. Close the browser.`,
   tools: [openBrowser, takePartialScreenshot, openURL, fillForm, closeBrowser],
   model: "gpt-4o-mini",
@@ -193,7 +202,7 @@ You are a web automation agent. Use the tools strictly in this sequence:
 async function runAutomation(siteUrl = "") {
   const result = await run(
     websiteAutomationAgent,
-    `Open ${siteUrl}, click signup or register link, inspect the signup form screenshot, determine the submit button label, fill dummy data, submit, and close the browser.`
+    `Open ${siteUrl}, click signup or register link, inspect the signup form , determine the submit button label, fill dummy data, submit, and close the browser.`
   );
   console.log(result.finalOutput);
 }
